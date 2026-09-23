@@ -6,7 +6,7 @@ import { DeliveryTicket } from './DeliveryTicket';
 import { GpsRouteHud } from './GpsRouteHud';
 import { PedidosYaLogo } from './PedidosYaLogo';
 import { audioEngine } from '../utils/audioEngine';
-import { downloadChinitaPhoto } from '../utils/downloadPhoto';
+import { downloadChinitaPhoto, preloadPhotoBlob, shareChinitaPhoto, canShareFiles } from '../utils/downloadPhoto';
 import confetti from 'canvas-confetti';
 import {
   Play,
@@ -16,7 +16,8 @@ import {
   VolumeX,
   Download,
   Flame,
-  CheckCircle2
+  CheckCircle2,
+  Share2
 } from 'lucide-react';
 
 export const MotorcycleDeliveryScene: React.FC = () => {
@@ -32,6 +33,14 @@ export const MotorcycleDeliveryScene: React.FC = () => {
     }
     return false;
   });
+
+  const [canShare, setCanShare] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Preload photo for instant 0ms latency download on iOS & Android
+    preloadPhotoBlob('/assets/chinita.jpg');
+    setCanShare(canShareFiles());
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -243,6 +252,15 @@ export const MotorcycleDeliveryScene: React.FC = () => {
     }, 450);
   };
 
+  /**
+   * DIRECT SHARE / SAVE TO PHOTOS (iOS & Android)
+   */
+  const handleSharePhoto = async () => {
+    audioEngine.init();
+    audioEngine.playClick();
+    await shareChinitaPhoto('/assets/chinita.jpg', 'foto-chinita-pedidosya-cordoba.jpg');
+  };
+
   // -------------------------------------------------------------
   // ANIMATION MATHEMATICS WITH FULL MOBILE ADAPTATION
   // -------------------------------------------------------------
@@ -347,7 +365,7 @@ export const MotorcycleDeliveryScene: React.FC = () => {
       </div>
 
       {/* TOP FLOATING HEADER WITH LOGO & CONTROLS */}
-      <div className="absolute top-0 left-0 right-0 p-2.5 sm:p-5 pt-3 sm:pt-5 z-40 flex items-center justify-between pointer-events-none">
+      <div className="absolute top-0 left-0 right-0 p-2.5 sm:p-5 pt-[max(0.75rem,env(safe-area-inset-top))] sm:pt-5 z-40 flex items-center justify-between pointer-events-none">
         {/* Modern PedidosYa Logo Badge with Entrega Especial a Córdoba */}
         <div className="pointer-events-auto bg-slate-950/80 backdrop-blur-md px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-2xl border border-white/10 shadow-lg scale-90 sm:scale-100 origin-left">
           <PedidosYaLogo size="sm" showSubtitle={true} />
@@ -624,16 +642,27 @@ export const MotorcycleDeliveryScene: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Action Controls (Re-download only) */}
-          <div className="mt-3 flex items-center gap-3 shrink-0">
+          {/* Bottom Action Controls (Download & Save to Photos / Share) */}
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5 shrink-0 max-w-full px-2">
             <button
               onClick={handleAbrirPedido}
               disabled={isDownloading}
-              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#EA1D2C] to-[#B30B1C] hover:from-[#FF1E46] text-white font-bold text-xs sm:text-sm shadow-xl shadow-red-600/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#EA1D2C] to-[#B30B1C] hover:from-[#FF1E46] text-white font-bold text-xs sm:text-sm shadow-xl shadow-red-600/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Volver a Descargar</span>
             </button>
+
+            {canShare && (
+              <button
+                onClick={handleSharePhoto}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm border border-slate-600 shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                title="Guardar en Fotos o Compartir"
+              >
+                <Share2 className="w-3.5 h-3.5 text-amber-300" />
+                <span>Guardar / Compartir</span>
+              </button>
+            )}
           </div>
         </div>
       )}
