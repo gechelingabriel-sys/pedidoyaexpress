@@ -21,7 +21,7 @@ export const DeliveryTicket: React.FC<DeliveryTicketProps> = ({
   }, []);
 
   return (
-    <div className="relative w-full max-w-[340px] sm:max-w-md mx-auto select-none">
+    <div className="relative w-full max-w-[320px] sm:max-w-md mx-auto select-none">
       {/* 
         THERMAL RECEIPT PAPER TICKET CONTAINER
         With perforated zigzag edges, official PedidosYa styling, and stamped seal

@@ -25,8 +25,29 @@ export const MotorcycleDeliveryScene: React.FC = () => {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [hasStarted, setHasStarted] = useState<boolean>(false);
 
+  // Responsive device check for iPhone, Samsung S24 and modern mobile devices
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 640;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
   // States for surprise download progression:
-  // 'idle' -> 'animating' -> 'hot_package_showcase' (7s) -> 'ticket_ready' -> 'downloading' -> 'photo_revealed'
+  // 'idle' -> 'animating' -> 'hot_package_showcase' (10s) -> 'ticket_ready' -> 'downloading' -> 'photo_revealed'
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isPhotoRevealed, setIsPhotoRevealed] = useState<boolean>(false);
@@ -34,7 +55,7 @@ export const MotorcycleDeliveryScene: React.FC = () => {
   // TIMELINE MILESTONES:
   // 0.0s - 4.6s: Motorcycle travels with GPS Route HUD (Alicante -> Córdoba)
   // 4.9s - 5.8s: Arrival & Doorbell
-  // 5.8s - 7.0s: Zoom-in on the thermal delivery box
+  // 5.8s - 7.0s: Zoom-in directly on the thermal delivery box
   // 7.0s - 8.2s: Zipper unzips
   // 8.2s - 9.4s: Box lid opens with warm golden glow
   // 9.4s - 10.6s: Hot steaming package emerges
@@ -152,7 +173,7 @@ export const MotorcycleDeliveryScene: React.FC = () => {
             audioEngine.playHotFoodSizzleAndSteam();
           }
 
-          // At delivery arrival (17.6s), stop animation clock and display Ticket
+          // At delivery arrival (20.6s), stop animation clock and display Ticket
           if (next >= deliveryCompleteTime && !isPhotoRevealed) {
             return deliveryCompleteTime;
           }
@@ -223,30 +244,33 @@ export const MotorcycleDeliveryScene: React.FC = () => {
   };
 
   // -------------------------------------------------------------
-  // ANIMATION MATHEMATICS
+  // ANIMATION MATHEMATICS WITH FULL MOBILE ADAPTATION
   // -------------------------------------------------------------
   // Drive phase: 0.0s to 4.6s (relaxed pacing so the GPS can be appreciated)
   const driveDuration = 4.6;
   const tNorm = Math.min(1.0, animTime / driveDuration);
   const driveProgress = 1 - Math.pow(1 - tNorm, 2.5);
-  const motoX = 115 - driveProgress * 84;
+
+  // Wheel spin and mechanical physics
   const wheelSpinDeg = (1 - driveProgress) * 1600;
 
   let suspensionDip = 0;
   if (animTime > 4.2 && animTime < 4.8) {
     const bp = (animTime - 4.2) / 0.6;
-    suspensionDip = Math.sin(bp * Math.PI) * 6;
+    suspensionDip = Math.sin(bp * Math.PI) * 5;
   }
   const engineVibration =
-    animTime < 4.6 ? Math.sin(animTime * 60) * (animTime < 4.2 ? 1.4 : 0.7) : 0;
-  const riderLeanDeg = (1 - driveProgress) * 3.5;
+    animTime < 4.6 ? Math.sin(animTime * 60) * (animTime < 4.2 ? 1.2 : 0.6) : 0;
+  const riderLeanDeg = (1 - driveProgress) * 3.0;
 
-  // Zoom-in phase on bike box: 5.8s to 7.4s
+  // Zoom-in phase specifically on the thermal box: 5.8s to 7.4s
   const zoomProgress = Math.min(1.0, Math.max(0, (animTime - 5.8) / 1.6));
   const zoomEase = Math.sin((zoomProgress * Math.PI) / 2);
-  const sceneScale = 1.0 + zoomEase * 1.35;
-  const sceneTranslateX = zoomEase * -14;
-  const sceneTranslateY = zoomEase * 8;
+
+  // Background subtle zoom
+  const bgScale = 1.0 + zoomEase * (isMobile ? 0.35 : 0.4);
+  const bgShiftX = isMobile ? zoomEase * -4 : zoomEase * -8;
+  const bgShiftY = isMobile ? zoomEase * 2 : zoomEase * 4;
 
   // Box unzipping & lid opening
   const unzipProgress = Math.min(1.0, Math.max(0, (animTime - 7.0) / 1.2));
@@ -256,16 +280,57 @@ export const MotorcycleDeliveryScene: React.FC = () => {
   // The hot food package emergence: 9.4s to 10.6s
   const foodEmergence = Math.min(1.0, Math.max(0, (animTime - 9.4) / 1.2));
   const foodEaseOut = 1 - Math.pow(1 - foodEmergence, 3);
-  const foodY = 175 - foodEaseOut * 137;
-  const foodScale = 0.45 + foodEaseOut * 0.46;
+  
+  const foodY = isMobile
+    ? 90 - foodEaseOut * 120  // Rises to -30px (perfect eye level on mobile)
+    : 150 - foodEaseOut * 135;
+
+  const foodScale = isMobile
+    ? 0.5 + foodEaseOut * 0.44
+    : 0.52 + foodEaseOut * 0.46;
 
   const doorbellActive = animTime >= 4.9 && animTime <= 5.8;
 
-  // Show the hot food package for exactly 7.0 seconds (from ~10.6s to 17.6s)
+  // Show the hot food package for exactly 10.0 seconds (from ~10.6s to 20.6s)
   const isPackageShowcaseActive = animTime >= 9.6 && animTime < deliveryCompleteTime && !isPhotoRevealed;
 
-  // Automatic transition to Ticket after 7 seconds of showcase
+  // Automatic transition to Ticket after 10 seconds of showcase
   const isDeliveryArrived = animTime >= deliveryCompleteTime && !isPhotoRevealed;
+
+  // -------------------------------------------------------------
+  // MOTORCYCLE & BOX RESPONSIVE GEOMETRY (NO CUTOFF ON ANY PHONE)
+  // -------------------------------------------------------------
+  // On mobile (< 640px): Base width = 290px
+  // In a 290px container:
+  // - Motorcycle front wheel edge: 34px
+  // - PedidosYa Box right edge: 267px
+  // - Total span: 233px!
+  // On a 360px Samsung S24: 290px centered leaves 35px left, 35px right.
+  // Real motorcycle margins: 69px left clearance, 58px right clearance!
+  // On a 390px iPhone 13/14/15/16: 84px left clearance, 73px right clearance!
+  const baseBikeWidth = isMobile ? 290 : 470;
+  const baseBikeHeight = Math.round(baseBikeWidth * (320 / 480));
+  const bikeScale = baseBikeWidth / 480;
+
+  // Exact coordinates of PedidosYa Box mounted on rear luggage rack
+  const boxLeft = Math.round(302 * bikeScale);
+  const boxTop = Math.round(76 * bikeScale);
+  const boxSize = Math.round(140 * bikeScale);
+  const boxCenterX = Math.round(372 * bikeScale);
+  const boxCenterY = Math.round(142 * bikeScale);
+
+  // Travel physics:
+  // Starts at +115vw (fully off-screen to the right)
+  // Stops at 0vw (exactly in the centered stopped position)
+  const driveOffsetX = (1 - driveProgress) * (isMobile ? 120 : 100);
+
+  // During zoom (5.8s - 7.4s), camera pans to center the box
+  // Difference between box center and container center:
+  const containerCenterX = baseBikeWidth / 2;
+  const boxOffsetFromCenter = boxCenterX - containerCenterX;
+  // Shift container left so the box is dead center in the viewport:
+  const zoomShiftX = -boxOffsetFromCenter * zoomEase;
+  const zoomScale = 1.0 + zoomEase * (isMobile ? 0.65 : 0.6);
 
   return (
     <div className="relative w-full max-w-5xl mx-auto h-[100dvh] sm:h-auto sm:aspect-[16/9] bg-slate-950 sm:rounded-3xl overflow-hidden border-0 sm:border border-slate-800 shadow-[0_20px_60px_rgba(0,0,0,0.85)] select-none flex flex-col justify-between">
@@ -274,7 +339,7 @@ export const MotorcycleDeliveryScene: React.FC = () => {
         className="absolute inset-0 bg-cover bg-center transition-transform duration-700 ease-out"
         style={{
           backgroundImage: 'url(/assets/building_entrance.jpg)',
-          transform: `scale(${sceneScale}) translate(${sceneTranslateX}%, ${sceneTranslateY}%)`,
+          transform: `scale(${bgScale}) translate(${bgShiftX}%, ${bgShiftY}%)`,
           filter: isDeliveryArrived ? 'blur(6px) brightness(0.6)' : isPackageShowcaseActive ? 'brightness(0.75)' : 'brightness(0.95)',
         }}
       >
@@ -338,45 +403,76 @@ export const MotorcycleDeliveryScene: React.FC = () => {
 
       {/* Doorbell Sound Wave Pulse */}
       {doorbellActive && (
-        <div className="absolute top-[35%] left-[24%] -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10">
-          <div className="w-24 h-24 rounded-full border-4 border-amber-400/80 animate-ping" />
-          <div className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-amber-400/40 blur-md" />
-          <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-full shadow-xl tracking-wider">
+        <div
+          className="absolute pointer-events-none z-30 -translate-x-1/2 -translate-y-1/2"
+          style={{
+            left: isMobile ? '45%' : '24%',
+            top: isMobile ? '38%' : '35%',
+          }}
+        >
+          <div className="w-16 sm:w-24 h-16 sm:h-24 rounded-full border-4 border-amber-400/80 animate-ping" />
+          <div className="absolute inset-0 m-auto w-8 sm:w-12 h-8 sm:h-12 rounded-full bg-amber-400/40 blur-md" />
+          <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 font-black text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full shadow-xl tracking-wider whitespace-nowrap">
             DING-DONG!
           </span>
         </div>
       )}
 
       {/* Street & Curb */}
-      <div className="absolute bottom-0 left-0 right-0 h-[28%] bg-gradient-to-t from-slate-900 via-slate-800/90 to-transparent border-t border-slate-700/40 pointer-events-none z-10">
+      <div
+        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-800/90 to-transparent border-t border-slate-700/40 pointer-events-none z-10 ${
+          isMobile ? 'h-[30%]' : 'h-[28%]'
+        }`}
+      >
         <div className="absolute bottom-0 left-0 right-0 h-2 bg-yellow-400/75" />
         <div className="absolute bottom-4 left-0 right-0 border-b-2 border-dashed border-white/25" />
       </div>
 
-      {/* MOTORCYCLE & PROPORTIONED PEDIDOSYA BOX */}
+      {/* 
+        ============================================================
+        MOTORCYCLE & MOUNTED PEDIDOSYA BOX
+        100% VISIBLE ON IPHONE, SAMSUNG S24 AND ALL SCREEN SIZES
+        - Centered with generous safety margins
+        - Perfectly scaled box mounted securely on the luggage rack
+        - Smooth drive-in from the right, stopping precisely in frame
+        - Seamless zoom centered directly on the box without cutting
+        ============================================================
+      */}
       <div
-        className="absolute bottom-[9%] pointer-events-none z-20 transition-transform duration-75 ease-out"
+        className="absolute pointer-events-none z-20"
         style={{
-          left: `${motoX}%`,
-          transform: `translateY(${engineVibration + suspensionDip}px) rotate(${riderLeanDeg}deg) scale(${sceneScale}) translate(${sceneTranslateX}%, ${sceneTranslateY}%)`,
-          transformOrigin: '50% 85%',
+          bottom: isMobile ? '16%' : '10%',
+          left: isMobile ? '50%' : '44%',
+          width: `${baseBikeWidth}px`,
+          height: `${baseBikeHeight}px`,
+          transform: `translateX(calc(-50% + ${driveOffsetX}vw + ${zoomShiftX}px)) translateY(${engineVibration + suspensionDip}px) rotate(${riderLeanDeg}deg) scale(${zoomScale})`,
+          transformOrigin: `${boxCenterX}px ${boxCenterY}px`,
+          transition: 'transform 0.08s ease-out',
         }}
       >
-        <div className="relative">
-          <MotorcycleSvg wheelRotation={wheelSpinDeg} size={480} />
+        <div className="relative w-full h-full">
+          {/* Motorcycle SVG */}
+          <MotorcycleSvg wheelRotation={wheelSpinDeg} size={baseBikeWidth} />
 
+          {/* Exhaust smoke ping while driving */}
           {animTime < 4.6 && driveProgress > 0.05 && (
-            <div className="absolute right-[45px] bottom-[35px] pointer-events-none">
-              <span className="inline-block w-4 h-4 rounded-full bg-slate-400/35 blur-[2px] animate-ping" />
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                right: `${Math.round(45 * bikeScale)}px`,
+                bottom: `${Math.round(35 * bikeScale)}px`,
+              }}
+            >
+              <span className="inline-block w-3.5 h-3.5 rounded-full bg-slate-400/35 blur-[2px] animate-ping" />
             </div>
           )}
 
-          {/* Clean Box mounted on bike rack */}
+          {/* Clean PedidosYa Box securely mounted on the rear luggage rack */}
           <div
             className="absolute pointer-events-auto"
             style={{
-              left: '302px',
-              top: '76px',
+              left: `${boxLeft}px`,
+              top: `${boxTop}px`,
               transform: `rotate(-4deg) scale(${zoomProgress > 0.6 ? 1.08 : 1.0})`,
               transition: 'transform 0.4s ease-out',
             }}
@@ -385,7 +481,7 @@ export const MotorcycleDeliveryScene: React.FC = () => {
               lidOpenProgress={lidOpenProgress}
               unzipProgress={unzipProgress}
               isGlowing={isGlowing}
-              size={140}
+              size={boxSize}
             />
           </div>
         </div>
@@ -407,14 +503,14 @@ export const MotorcycleDeliveryScene: React.FC = () => {
         >
           <div className="relative flex flex-col items-center scale-90 sm:scale-100 origin-center max-w-full">
             {/* Caution Hot Food Floating Badge */}
-            <div className="absolute -top-7 px-3.5 sm:px-4 py-1.5 rounded-full bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white border-2 border-yellow-300 text-[10px] sm:text-xs font-black shadow-[0_8px_25px_rgba(239,68,68,0.7)] flex items-center gap-1.5 backdrop-blur-md animate-bounce z-40 whitespace-nowrap">
-              <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-300 fill-current animate-pulse" />
+            <div className="absolute -top-7 px-3 py-1 rounded-full bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white border-2 border-yellow-300 text-[10px] sm:text-xs font-black shadow-[0_8px_25px_rgba(239,68,68,0.7)] flex items-center gap-1 backdrop-blur-md animate-bounce z-40 whitespace-nowrap">
+              <Flame className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300 fill-current animate-pulse" />
               <span>¡CUIDADO: RECIÉN SALIDO DEL HORNO · QUEMA!</span>
-              <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-300 fill-current animate-pulse" />
+              <Flame className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300 fill-current animate-pulse" />
             </div>
 
             {/* STEAMING BURNING FOOD PACKAGE SHAKING WITH INTENSE HEAT */}
-            <HotFoodPackage size={270} className="transition-all" />
+            <HotFoodPackage size={isMobile ? 220 : 275} className="transition-all" />
 
             {/* Status caption (no manual buttons as requested) */}
             <div className="mt-2.5 text-center z-40 px-2">
@@ -460,7 +556,7 @@ export const MotorcycleDeliveryScene: React.FC = () => {
           </div>
 
           {/* OFFICIAL TICKET DE PEDIDO PAGADO Y ENTREGADO */}
-          <div className="w-full max-w-[340px] sm:max-w-md shrink-0">
+          <div className="w-full max-w-[320px] sm:max-w-md shrink-0">
             <DeliveryTicket
               onOpenOrder={handleAbrirPedido}
               isOpening={isDownloading}
@@ -501,7 +597,7 @@ export const MotorcycleDeliveryScene: React.FC = () => {
           </div>
 
           {/* Deluxe Polaroid Print */}
-          <div className="relative bg-white p-2.5 sm:p-4 pb-7 sm:pb-9 rounded-2xl sm:rounded-3xl shadow-[0_25px_75px_rgba(0,0,0,0.95)] border-3 sm:border-4 border-amber-300 w-full max-w-[260px] sm:max-w-[340px] animate-scale-up shrink-0">
+          <div className="relative bg-white p-2.5 sm:p-4 pb-7 sm:pb-9 rounded-2xl sm:rounded-3xl shadow-[0_25px_75px_rgba(0,0,0,0.95)] border-3 sm:border-4 border-amber-300 w-full max-w-[250px] sm:max-w-[340px] animate-scale-up shrink-0">
             {/* Top Official Badge */}
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#EA1D2C] to-[#B30B1C] text-white text-[9px] sm:text-[11px] font-extrabold px-3 py-0.5 sm:px-4 sm:py-1 rounded-full shadow-lg flex items-center gap-1 border border-amber-300/50 whitespace-nowrap">
               <Flame className="w-3 h-3 text-amber-300 fill-current" />
@@ -545,21 +641,21 @@ export const MotorcycleDeliveryScene: React.FC = () => {
       {/* START SCREEN OVERLAY */}
       {!hasStarted && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center z-50 p-4 text-center">
-          <div className="mb-4">
+          <div className="mb-4 scale-90 sm:scale-100">
             <PedidosYaLogo size="lg" showSubtitle={false} />
           </div>
 
           <button
             onClick={handlePlayToggle}
-            className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#FF1E46] via-[#EA1D2C] to-[#B30B1C] text-white flex items-center justify-center shadow-[0_12px_35px_rgba(234,29,44,0.65)] border border-white/30 transition-all transform hover:scale-110 active:scale-95 mb-4 group cursor-pointer"
+            className="w-18 sm:w-20 h-18 sm:h-20 rounded-3xl bg-gradient-to-br from-[#FF1E46] via-[#EA1D2C] to-[#B30B1C] text-white flex items-center justify-center shadow-[0_12px_35px_rgba(234,29,44,0.65)] border border-white/30 transition-all transform hover:scale-110 active:scale-95 mb-4 group cursor-pointer"
           >
-            <Play className="w-9 h-9 fill-current translate-x-1 group-hover:scale-110 transition-transform" />
+            <Play className="w-8 sm:w-9 h-8 sm:h-9 fill-current translate-x-1 group-hover:scale-110 transition-transform" />
           </button>
 
-          <h3 className="text-xl sm:text-2xl font-black text-white mb-1 tracking-tight">
+          <h3 className="text-lg sm:text-2xl font-black text-white mb-1 tracking-tight">
             Entrega Especial a Córdoba
           </h3>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-sm">
+          <p className="text-xs sm:text-sm text-slate-300 max-w-xs sm:max-w-sm">
             Toca el botón para iniciar la animación y recibir tu comprobante de entrega
           </p>
         </div>
