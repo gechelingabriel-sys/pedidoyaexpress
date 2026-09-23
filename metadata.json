@@ -1,0 +1,6 @@
+{
+  "name": "PedidosYa Entrega Especial - ¡Felicidades Chinita!",
+  "description": "Animación interactiva de la llegada de la moto de PedidosYa, apertura de la caja sin marca de agua y entrega de la foto con felicitaciones descargable.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
